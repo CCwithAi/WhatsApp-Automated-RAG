@@ -206,6 +206,9 @@ async def suggest_reply(chat_jid: str):
         for m in history:
             role = "assistant" if m["is_from_me"] else "user"
             messages.append({"role": role, "content": m["content"]})
+            
+        if messages[-1]["role"] != "user":
+            messages.append({"role": "user", "content": "Suggest a follow-up reply or next response to the customer."})
         
         response = openai_client.chat.completions.create(
             model=model,

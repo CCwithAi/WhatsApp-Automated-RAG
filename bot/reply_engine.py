@@ -213,6 +213,9 @@ class ReplyEngine:
         else:
             messages.append({"role": "user", "content": new_message})
 
+        if messages[-1]["role"] != "user":
+            messages.append({"role": "user", "content": "Suggest a follow-up reply or next response to the customer."})
+
         try:
             response = self.llm.chat.completions.create(
                 model=self.config.llm.model,
