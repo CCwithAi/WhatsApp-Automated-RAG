@@ -206,15 +206,30 @@ class ReplyEngine:
         messages = [{"role": "system", "content": system_prompt}]
 
         # Add conversation history
+        history_lines = []
         if context:
             for m in context:
-                role = "assistant" if m.get("is_from_me") else "user"
-                messages.append({"role": role, "content": m["content"]})
+                sender_label = "Business (Us)" if m.get("is_from_me") else "Customer"
+                history_lines.append(f"[{sender_label}]: {m['content']}")
         else:
-            messages.append({"role": "user", "content": new_message})
+            history_lines.append(f"[Customer]: {new_message}")
+        history_text = "\n".join(history_lines)
 
-        if messages[-1]["role"] != "user":
-            messages.append({"role": "user", "content": "Suggest a follow-up reply or next response to the customer."})
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"Here is the recent conversation history:\n"
+                    f"=========================================\n"
+                    f"{history_text}\n"
+                    f"=========================================\n\n"
+                    f"Write the next response as the business. "
+                    f"Keep it concise, specific, and natural for WhatsApp. "
+                    f"Follow all configured system prompt rules strictly."
+                )
+            }
+        ]
 
         try:
             response = self.llm.chat.completions.create(

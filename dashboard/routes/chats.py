@@ -202,13 +202,27 @@ async def suggest_reply(chat_jid: str):
             
         openai_client = OpenAI(base_url=base_url, api_key=api_key)
         
-        messages = [{"role": "system", "content": system_prompt}]
+        history_lines = []
         for m in history:
-            role = "assistant" if m["is_from_me"] else "user"
-            messages.append({"role": role, "content": m["content"]})
-            
-        if messages[-1]["role"] != "user":
-            messages.append({"role": "user", "content": "Suggest a follow-up reply or next response to the customer."})
+            sender_label = "Business (Us)" if m["is_from_me"] else "Customer"
+            history_lines.append(f"[{sender_label}]: {m['content']}")
+        history_text = "\n".join(history_lines)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"Here is the recent conversation history:\n"
+                    f"=========================================\n"
+                    f"{history_text}\n"
+                    f"=========================================\n\n"
+                    f"Write the next response as the business. "
+                    f"Keep it concise, specific, and natural for WhatsApp. "
+                    f"Follow all configured system prompt rules strictly."
+                )
+            }
+        ]
         
         response = openai_client.chat.completions.create(
             model=model,
