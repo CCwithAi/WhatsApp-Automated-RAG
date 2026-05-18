@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2025 Luke Harries
+Copyright (c) 2025 Luke Harries (original author base MCP Server repo <https://github.com/LukeHarries/whatsapp-mcp-server>)
+CCCwithAI Ltd we have created a new repo for this as we have made it into am automated docker based whatsapp mangement tool for use with any AI LLM.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +20,9 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Works all local with LM Studio and docker sql containers, we used qwen/qwen3.6-27b and text-embedding-nomic-embed-text-v1.5 as the models,![alt text](image.png)
+
+read more here <https://www.ccwithai.com/blog/private-whatsapp-ai-agent-admin-dashboard>
+
+if you have any issues or problems, then do not hesitate to contact us on [info@ccwithai.com]

@@ -203,7 +203,7 @@ type SendMessageRequest struct {
 }
 
 // Function to send a WhatsApp message
-func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message string, mediaPath string) (bool, string) {
+func sendWhatsAppMessage(client *whatsmeow.Client, messageStore *MessageStore, recipient string, message string, mediaPath string) (bool, string) {
 	if !client.IsConnected() {
 		return false, "Not connected to WhatsApp"
 	}
@@ -230,6 +230,10 @@ func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message str
 	}
 
 	msg := &waProto.Message{}
+
+	var mType, fName, uStr string
+	var mKey, fSHA, fEncSHA []byte
+	var fLen uint64
 
 	// Check if we have media to send
 	if mediaPath != "" {
@@ -283,27 +287,34 @@ func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message str
 		}
 
 		// Upload media to WhatsApp servers
-		resp, err := client.Upload(context.Background(), mediaData, mediaType)
+		uploadResp, err := client.Upload(context.Background(), mediaData, mediaType)
 		if err != nil {
 			return false, fmt.Sprintf("Error uploading media: %v", err)
 		}
 
-		fmt.Println("Media uploaded", resp)
+		fmt.Println("Media uploaded", uploadResp)
+
+		fName = mediaPath[strings.LastIndex(mediaPath, "/")+1:]
+		if fName == "" {
+			fName = "media_" + time.Now().Format("20060102_150405")
+		}
 
 		// Create the appropriate message type based on media type
 		switch mediaType {
 		case whatsmeow.MediaImage:
+			mType = "image"
 			msg.ImageMessage = &waProto.ImageMessage{
 				Caption:       proto.String(message),
 				Mimetype:      proto.String(mimeType),
-				URL:           &resp.URL,
-				DirectPath:    &resp.DirectPath,
-				MediaKey:      resp.MediaKey,
-				FileEncSHA256: resp.FileEncSHA256,
-				FileSHA256:    resp.FileSHA256,
-				FileLength:    &resp.FileLength,
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &uploadResp.FileLength,
 			}
 		case whatsmeow.MediaAudio:
+			mType = "audio"
 			// Handle ogg audio files
 			var seconds uint32 = 30 // Default fallback
 			var waveform []byte = nil
@@ -323,49 +334,82 @@ func sendWhatsAppMessage(client *whatsmeow.Client, recipient string, message str
 
 			msg.AudioMessage = &waProto.AudioMessage{
 				Mimetype:      proto.String(mimeType),
-				URL:           &resp.URL,
-				DirectPath:    &resp.DirectPath,
-				MediaKey:      resp.MediaKey,
-				FileEncSHA256: resp.FileEncSHA256,
-				FileSHA256:    resp.FileSHA256,
-				FileLength:    &resp.FileLength,
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &uploadResp.FileLength,
 				Seconds:       proto.Uint32(seconds),
 				PTT:           proto.Bool(true),
 				Waveform:      waveform,
 			}
 		case whatsmeow.MediaVideo:
+			mType = "video"
 			msg.VideoMessage = &waProto.VideoMessage{
 				Caption:       proto.String(message),
 				Mimetype:      proto.String(mimeType),
-				URL:           &resp.URL,
-				DirectPath:    &resp.DirectPath,
-				MediaKey:      resp.MediaKey,
-				FileEncSHA256: resp.FileEncSHA256,
-				FileSHA256:    resp.FileSHA256,
-				FileLength:    &resp.FileLength,
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &uploadResp.FileLength,
 			}
 		case whatsmeow.MediaDocument:
+			mType = "document"
 			msg.DocumentMessage = &waProto.DocumentMessage{
 				Title:         proto.String(mediaPath[strings.LastIndex(mediaPath, "/")+1:]),
 				Caption:       proto.String(message),
 				Mimetype:      proto.String(mimeType),
-				URL:           &resp.URL,
-				DirectPath:    &resp.DirectPath,
-				MediaKey:      resp.MediaKey,
-				FileEncSHA256: resp.FileEncSHA256,
-				FileSHA256:    resp.FileSHA256,
-				FileLength:    &resp.FileLength,
+				URL:           &uploadResp.URL,
+				DirectPath:    &uploadResp.DirectPath,
+				MediaKey:      uploadResp.MediaKey,
+				FileEncSHA256: uploadResp.FileEncSHA256,
+				FileSHA256:    uploadResp.FileSHA256,
+				FileLength:    &uploadResp.FileLength,
 			}
 		}
+
+		uStr = uploadResp.URL
+		mKey = uploadResp.MediaKey
+		fSHA = uploadResp.FileSHA256
+		fEncSHA = uploadResp.FileEncSHA256
+		fLen = uploadResp.FileLength
 	} else {
 		msg.Conversation = proto.String(message)
 	}
 
 	// Send message
-	_, err = client.SendMessage(context.Background(), recipientJID, msg)
-
+	sendResp, err := client.SendMessage(context.Background(), recipientJID, msg)
 	if err != nil {
 		return false, fmt.Sprintf("Error sending message: %v", err)
+	}
+
+	// Update chat in database with the message timestamp
+	err = messageStore.StoreChat(recipientJID.String(), GetChatName(client, messageStore, recipientJID, recipientJID.String(), nil, "", client.Log), sendResp.Timestamp)
+	if err != nil {
+		fmt.Printf("Failed to update chat for sent message: %v\n", err)
+	}
+
+	// Store sent message in database
+	err = messageStore.StoreMessage(
+		sendResp.ID,
+		recipientJID.String(),
+		client.Store.ID.User,
+		message,
+		sendResp.Timestamp,
+		true, // isFromMe
+		mType,
+		fName,
+		uStr,
+		mKey,
+		fSHA,
+		fEncSHA,
+		fLen,
+	)
+	if err != nil {
+		fmt.Printf("Failed to store sent message in database: %v\n", err)
 	}
 
 	return true, fmt.Sprintf("Message sent to %s", recipient)
@@ -641,7 +685,7 @@ func downloadMedia(client *whatsmeow.Client, messageStore *MessageStore, message
 	}
 
 	// Download the media using whatsmeow client
-	mediaData, err := client.Download(downloader)
+	mediaData, err := client.Download(context.Background(), downloader)
 	if err != nil {
 		return false, "", "", "", fmt.Errorf("failed to download media: %v", err)
 	}
@@ -706,7 +750,7 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port 
 		fmt.Println("Received request to send message", req.Message, req.MediaPath)
 
 		// Send the message
-		success, message := sendWhatsAppMessage(client, req.Recipient, req.Message, req.MediaPath)
+		success, message := sendWhatsAppMessage(client, messageStore, req.Recipient, req.Message, req.MediaPath)
 		fmt.Println("Message sent", success, message)
 		// Set response headers
 		w.Header().Set("Content-Type", "application/json")
@@ -800,14 +844,14 @@ func main() {
 		return
 	}
 
-	container, err := sqlstore.New("sqlite3", "file:store/whatsapp.db?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New(context.Background(), "sqlite3", "file:store/whatsapp.db?_foreign_keys=on", dbLog)
 	if err != nil {
 		logger.Errorf("Failed to connect to database: %v", err)
 		return
 	}
 
 	// Get device store - This contains session information
-	deviceStore, err := container.GetFirstDevice()
+	deviceStore, err := container.GetFirstDevice(context.Background())
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// No device exists, create one
@@ -973,7 +1017,7 @@ func GetChatName(client *whatsmeow.Client, messageStore *MessageStore, jid types
 
 		// If we didn't get a name, try group info
 		if name == "" {
-			groupInfo, err := client.GetGroupInfo(jid)
+			groupInfo, err := client.GetGroupInfo(context.Background(), jid)
 			if err == nil && groupInfo.Name != "" {
 				name = groupInfo.Name
 			} else {
@@ -988,7 +1032,7 @@ func GetChatName(client *whatsmeow.Client, messageStore *MessageStore, jid types
 		logger.Infof("Getting name for contact: %s", chatJID)
 
 		// Just use contact info (full name)
-		contact, err := client.Store.Contacts.GetContact(jid)
+		contact, err := client.Store.Contacts.GetContact(context.Background(), jid)
 		if err == nil && contact.FullName != "" {
 			name = contact.FullName
 		} else if sender != "" {

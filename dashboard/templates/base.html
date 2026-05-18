@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bot — {{ instance_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">🤖</div>
+            <h2>WhatsApp Bot</h2>
+            <span class="instance-badge">{{ instance_name }}</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/chats" class="{% if page == 'chats' %}active{% endif %}">
+                <span class="icon">💬</span> Chats
+            </a></li>
+            <li><a href="/bot/activity" class="{% if page == 'activity' %}active{% endif %}">
+                <span class="icon">📊</span> Bot Activity
+            </a></li>
+            <li><a href="/bot/config" class="{% if page == 'config' %}active{% endif %}">
+                <span class="icon">⚙️</span> Configuration
+            </a></li>
+            <li><a href="/bot/marketing" class="{% if page == 'marketing' %}active{% endif %}">
+                <span class="icon">📣</span> Marketing
+            </a></li>
+            <li><a href="/models" class="{% if page == 'models' %}active{% endif %}">
+                <span class="icon">🧠</span> LM Studio
+            </a></li>
+            <li><a href="/training" class="{% if page == 'training' %}active{% endif %}">
+                <span class="icon">🎓</span> Training
+            </a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="status-dot online"></div>
+            <span>System Online</span>
+        </div>
+    </nav>
+    <main class="content">
+        {% block content %}
+        <div class="dashboard-home">
+            <h1>Dashboard</h1>
+            <p>Select a section from the sidebar to get started.</p>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">💬</div>
+                    <div class="stat-label">Chats</div>
+                    <div class="stat-value">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🤖</div>
+                    <div class="stat-label">Bot Status</div>
+                    <div class="stat-value">Running</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🧠</div>
+                    <div class="stat-label">LM Studio</div>
+                    <div class="stat-value">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🎓</div>
+                    <div class="stat-label">Training Chunks</div>
+                    <div class="stat-value">—</div>
+                </div>
+            </div>
+        </div>
+        {% endblock %}
+    </main>
+    <script src="/static/app.js"></script>
+</body>
+</html>

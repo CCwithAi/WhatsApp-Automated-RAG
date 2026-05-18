@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>📣 Marketing Queue</h1>
+</div>
+<div class="config-card full-width">
+    <h3>New Marketing Message</h3>
+    <form method="post" action="/bot/marketing">
+        <textarea name="content" rows="4" placeholder="Type your marketing message here..." class="prompt-editor" required></textarea>
+        <label>Schedule (optional)
+            <input type="datetime-local" name="scheduled_at" class="search-input">
+        </label>
+        <button type="submit" class="btn btn-primary">📤 Queue Message</button>
+    </form>
+</div>
+<h3>Queued & Sent Messages</h3>
+<table class="data-table">
+    <thead>
+        <tr><th>ID</th><th>Content</th><th>Status</th><th>Scheduled</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+        {% for msg in messages %}
+        <tr>
+            <td>{{ msg.id }}</td>
+            <td class="msg-col">{{ (msg.content or '')[:80] }}</td>
+            <td><span class="classification-badge {{ msg.status }}">{{ msg.status }}</span></td>
+            <td>{{ msg.scheduled_at or 'ASAP' }}</td>
+            <td>{{ msg.created_at }}</td>
+            <td>
+                {% if msg.status == 'pending' %}
+                <form method="post" action="/bot/marketing/{{ msg.id }}/delete" style="display:inline">
+                    <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">No marketing messages yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

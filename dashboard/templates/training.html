@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>🎓 Training Pipeline</h1>
+    <button class="btn btn-primary" onclick="startTraining()">
+        {% if status.running %}⏳ Training in Progress...{% else %}🚀 Run Training{% endif %}
+    </button>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">📦</div>
+        <div class="stat-label">Training Chunks</div>
+        <div class="stat-value">{{ stats.chunks }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-label">Last Run</div>
+        <div class="stat-value">{{ stats.last_run.started_at if stats.last_run else 'Never' }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-label">Status</div>
+        <div class="stat-value">{{ stats.last_run.status if stats.last_run else 'N/A' }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">💬</div>
+        <div class="stat-label">Messages Processed</div>
+        <div class="stat-value">{{ stats.last_run.messages_processed if stats.last_run else '0' }}</div>
+    </div>
+</div>
+
+<div id="training-progress" class="training-progress" style="display:{% if status.running %}block{% else %}none{% endif %}">
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+    </div>
+    <div id="progress-label" class="progress-label">Initializing...</div>
+</div>
+
+<h3>Training History</h3>
+<table class="data-table">
+    <thead>
+        <tr><th>Started</th><th>Completed</th><th>Status</th><th>Messages</th><th>Chunks</th><th>Embeddings</th><th>Error</th></tr>
+    </thead>
+    <tbody>
+        {% for run in stats.runs %}
+        <tr>
+            <td>{{ run.started_at }}</td>
+            <td>{{ run.completed_at or '—' }}</td>
+            <td><span class="classification-badge {{ run.status }}">{{ run.status }}</span></td>
+            <td>{{ run.messages_processed }}</td>
+            <td>{{ run.chunks_created }}</td>
+            <td>{{ run.embeddings_generated }}</td>
+            <td class="msg-col">{{ (run.error_message or '')[:50] }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty-state">No training runs yet. Click "Run Training" to start.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+async function startTraining() {
+    const resp = await fetch('/training/run', {method: 'POST'});
+    const data = await resp.json();
+    if (data.status === 'started') {
+        document.getElementById('training-progress').style.display = 'block';
+        const es = new EventSource('/api/sse/training');
+        es.addEventListener('training_status', (e) => {
+            const s = JSON.parse(e.data);
+            const pct = s.total > 0 ? Math.round((s.progress / s.total) * 100) : 0;
+            document.getElementById('progress-fill').style.width = pct + '%';
+            document.getElementById('progress-label').textContent =
+                `${s.stage} — ${s.progress}/${s.total} chunks (${s.messages_processed} messages, ${s.chunks_created} chunks)`;
+            if (!s.running) {
+                es.close();
+                setTimeout(() => location.reload(), 1000);
+            }
+        });
+    } else if (data.status === 'already_running') {
+        alert('Training already in progress');
+    }
+}
+</script>
+{% endblock %}

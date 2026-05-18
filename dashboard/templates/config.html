@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>⚙️ Bot Configuration</h1>
+</div>
+<form method="post" action="/bot/config" class="config-form">
+    <div class="config-grid">
+        <div class="config-card">
+            <h3>Schedule</h3>
+            <label>Check Interval (minutes)
+                <input type="number" name="check_interval_minutes" value="{{ config.get('check_interval_minutes', 3) }}" min="1" max="60">
+            </label>
+            <label>Lookback Window (minutes)
+                <input type="number" name="lookback_minutes" value="{{ config.get('lookback_minutes', 60) }}" min="5" max="1440" disabled>
+            </label>
+        </div>
+        <div class="config-card">
+            <h3>Safety</h3>
+            <label>Cooldown (minutes)
+                <input type="number" name="cooldown_minutes" value="{{ config.get('cooldown_minutes', 10) }}" min="1" max="120">
+            </label>
+            <label>Max Replies per Chat per Day
+                <input type="number" name="max_replies_per_chat_per_day" value="{{ config.get('max_replies_per_chat_per_day', 10) }}" min="1" max="100">
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" name="reply_to_groups" value="true" {% if config.get('reply_to_groups', True) %}checked{% endif %}>
+                Reply to Group Chats
+            </label>
+        </div>
+        
+        <div class="config-card full-width">
+            <h3>🤖 LM Studio & LLM Model Settings</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+                <label>LM Studio API Endpoint
+                    <input type="text" name="llm_base_url" value="{{ config.get('llm', {}).get('base_url', 'http://host.docker.internal:12344/v1') }}" placeholder="http://host.docker.internal:12344/v1">
+                </label>
+                <label>API Key / Token
+                    <input type="text" name="llm_api_key" value="{{ config.get('llm', {}).get('api_key', '') }}" placeholder="sk-lm-...">
+                </label>
+                <label>Select Loaded Chat Model
+                    <select onchange="document.getElementsByName('llm_model')[0].value = this.value">
+                        <option value="">-- Choose Loaded Model --</option>
+                        {% for m in loaded_models %}
+                        <option value="{{ m }}" {% if config.get('llm', {}).get('model') == m %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Or Enter Custom Model ID
+                    <input type="text" name="llm_model" value="{{ config.get('llm', {}).get('model', 'local-model') }}" placeholder="local-model">
+                </label>
+                <label>Temperature (0.0 to 1.5)
+                    <input type="number" name="llm_temperature" value="{{ config.get('llm', {}).get('temperature', 0.7) }}" step="0.1" min="0.0" max="1.5">
+                </label>
+                <label>Max Output Tokens
+                    <input type="number" name="llm_max_tokens" value="{{ config.get('llm', {}).get('max_tokens', 300) }}" min="50" max="2000">
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="config-card full-width">
+        <h3>System Prompt</h3>
+        <textarea name="system_prompt" rows="15" class="prompt-editor">{{ config.get('system_prompt', '') }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">💾 Save Configuration</button>
+    <p class="help-text" style="margin-top: 10px;">Note: The bot container will pick up changes on its next check cycle (every 3 min).</p>
+</form>
+{% endblock %}

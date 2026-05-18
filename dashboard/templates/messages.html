@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <a href="/chats" class="back-btn">← Back</a>
+    <h1>{{ chat_name }}</h1>
+    <span class="jid-label">{{ chat_jid }}</span>
+</div>
+
+<div class="message-thread" id="messageThread">
+    {% for msg in messages %}
+    <div class="message {% if msg.is_from_me %}sent{% else %}received{% endif %}">
+        <div class="message-bubble">
+            {% if not msg.is_from_me and msg.sender %}
+            <div class="message-sender">{{ msg.sender }}</div>
+            {% endif %}
+            <div class="message-text" style="white-space: pre-wrap;">{{ msg.content }}</div>
+            <div class="message-time">{{ msg.timestamp }}</div>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">No messages in this chat.</div>
+    {% endfor %}
+</div>
+
+<!-- AI Suggestion & Compose Panel -->
+<div class="compose-panel" style="margin-top: 24px; max-width: 700px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;">
+    <h3 style="font-size: 0.9rem; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">💡 AI Reply Assistant</h3>
+    <textarea id="replyTextarea" placeholder="Click 'Suggest AI Reply' to generate a response using business training history, or write a custom message..." style="width: 100%; min-height: 120px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); padding: 14px; font-family: inherit; font-size: 0.9rem; outline: none; transition: border-color 0.2s; resize: vertical; line-height: 1.5;"></textarea>
+    
+    <div style="display: flex; gap: 10px; margin-top: 14px; align-items: center; flex-wrap: wrap;">
+        <button id="suggestBtn" class="btn btn-secondary" onclick="generateAISuggestion()" style="padding: 10px 18px;">
+            <span>✨</span> Suggest AI Reply
+        </button>
+        <button id="sendBtn" class="btn btn-primary" onclick="sendReply()" style="padding: 10px 20px; margin-left: auto;">
+            <span>🚀</span> Send to Customer
+        </button>
+    </div>
+    <div id="statusAlert" style="margin-top: 12px; font-size: 0.85rem; display: none; padding: 10px; border-radius: var(--radius-sm);"></div>
+</div>
+
+<div style="margin-top: 20px; display: flex; gap: 10px;">
+    {% if current_page > 0 %}
+    <a href="/chats/{{ chat_jid }}?page={{ current_page - 1 }}" class="btn btn-secondary">← Newer</a>
+    {% endif %}
+    <a href="/chats/{{ chat_jid }}?page={{ current_page + 1 }}" class="btn btn-secondary">Older →</a>
+</div>
+
+<script>
+// Auto scroll message thread to bottom on load
+const thread = document.getElementById("messageThread");
+if (thread) {
+    thread.scrollTop = thread.scrollHeight;
+}
+
+const chatJid = "{{ chat_jid }}";
+
+async function generateAISuggestion() {
+    const suggestBtn = document.getElementById("suggestBtn");
+    const replyTextarea = document.getElementById("replyTextarea");
+    const statusAlert = document.getElementById("statusAlert");
+    
+    suggestBtn.disabled = true;
+    suggestBtn.innerHTML = `<span>⏳</span> Thinking...`;
+    statusAlert.style.display = "block";
+    statusAlert.style.background = "rgba(108, 92, 231, 0.15)";
+    statusAlert.style.color = "var(--info)";
+    statusAlert.innerText = "Querying local vector embeddings & running reasoning model...";
+    
+    try {
+        const response = await fetch(`/api/chats/${encodeURIComponent(chatJid)}/suggest-reply`, {
+            method: "POST"
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            replyTextarea.value = result.suggestion;
+            statusAlert.style.background = "rgba(0, 184, 148, 0.15)";
+            statusAlert.style.color = "var(--success)";
+            statusAlert.innerText = "AI Suggested reply populated successfully! You can review and edit before sending.";
+        } else {
+            statusAlert.style.background = "rgba(231, 76, 60, 0.15)";
+            statusAlert.style.color = "var(--danger)";
+            statusAlert.innerText = `Error: ${result.error || "Failed to generate suggested reply."}`;
+        }
+    } catch (err) {
+        statusAlert.style.background = "rgba(231, 76, 60, 0.15)";
+        statusAlert.style.color = "var(--danger)";
+        statusAlert.innerText = `Network error: ${err.message}`;
+    } finally {
+        suggestBtn.disabled = false;
+        suggestBtn.innerHTML = `<span>✨</span> Suggest AI Reply`;
+    }
+}
+
+async function sendReply() {
+    const sendBtn = document.getElementById("sendBtn");
+    const replyTextarea = document.getElementById("replyTextarea");
+    const statusAlert = document.getElementById("statusAlert");
+    const message = replyTextarea.value.trim();
+    
+    if (!message) {
+        statusAlert.style.display = "block";
+        statusAlert.style.background = "rgba(253, 203, 110, 0.15)";
+        statusAlert.style.color = "var(--warning)";
+        statusAlert.innerText = "Please write or generate a message before sending.";
+        return;
+    }
+    
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `<span>⏳</span> Sending...`;
+    statusAlert.style.display = "block";
+    statusAlert.style.background = "rgba(108, 92, 231, 0.15)";
+    statusAlert.style.color = "var(--info)";
+    statusAlert.innerText = "Sending message via Go WhatsApp bridge...";
+    
+    try {
+        const formData = new FormData();
+        formData.append("message", message);
+        
+        const response = await fetch(`/api/chats/${encodeURIComponent(chatJid)}/send`, {
+            method: "POST",
+            body: formData
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            statusAlert.style.background = "rgba(0, 184, 148, 0.15)";
+            statusAlert.style.color = "var(--success)";
+            statusAlert.innerText = "Sent successfully! Refreshing thread...";
+            replyTextarea.value = "";
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            statusAlert.style.background = "rgba(231, 76, 60, 0.15)";
+            statusAlert.style.color = "var(--danger)";
+            statusAlert.innerText = `Error sending: ${result.error || "Failed to send message."}`;
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = `<span>🚀</span> Send to Customer`;
+        }
+    } catch (err) {
+        statusAlert.style.background = "rgba(231, 76, 60, 0.15)";
+        statusAlert.style.color = "var(--danger)";
+        statusAlert.innerText = `Network error sending: ${err.message}`;
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = `<span>🚀</span> Send to Customer`;
+    }
+}
+</script>
+{% endblock %}
+

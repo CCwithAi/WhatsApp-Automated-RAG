@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>💬 Chats</h1>
+    <form class="search-form" method="get" action="/chats">
+        <input type="text" name="q" value="{{ search }}" placeholder="Search chats..." class="search-input">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+</div>
+<div class="chat-list" hx-ext="sse" sse-connect="/api/sse/chats">
+    {% for chat in chats %}
+    <a href="/chats/{{ chat.jid }}" class="chat-item">
+        <div class="chat-avatar">{{ chat.name[0] if chat.name else '?' }}</div>
+        <div class="chat-info">
+            <div class="chat-name">{{ chat.name or chat.jid }}</div>
+            <div class="chat-preview">{{ (chat.last_msg or '')[:80] }}</div>
+        </div>
+        <div class="chat-meta">
+            <div class="chat-time">{{ chat.last_message_time or '' }}</div>
+            {% if chat.msg_count %}<span class="badge">{{ chat.msg_count }}</span>{% endif %}
+        </div>
+    </a>
+    {% else %}
+    <div class="empty-state">No chats found.</div>
+    {% endfor %}
+</div>
+{% endblock %}

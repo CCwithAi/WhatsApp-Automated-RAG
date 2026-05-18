@@ -1,0 +1,18 @@
+.git
+.gitignore
+.claude
+.mcp.json
+*.md
+*.png
+LICENSE
+
+# Database files (stored in volume, not baked into image)
+whatsapp-bridge/store/*.db
+whatsapp-bridge/store/*/
+
+# Python artifacts
+whatsapp-mcp-server/.venv
+whatsapp-mcp-server/__pycache__
+
+# Config files
+claude_desktop_config.json

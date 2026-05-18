@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>📊 Bot Activity</h1>
+    <div class="filter-bar">
+        <a href="/bot/activity" class="btn {% if not classification_filter %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
+        <a href="/bot/activity?classification=CUSTOMER" class="btn {% if classification_filter == 'CUSTOMER' %}btn-success{% else %}btn-secondary{% endif %}">Customer</a>
+        <a href="/bot/activity?classification=SPAM" class="btn {% if classification_filter == 'SPAM' %}btn-danger{% else %}btn-secondary{% endif %}">Spam</a>
+        <a href="/bot/activity?classification=IRRELEVANT" class="btn {% if classification_filter == 'IRRELEVANT' %}btn-ghost{% else %}btn-secondary{% endif %}">Irrelevant</a>
+    </div>
+</div>
+<div class="activity-log" hx-ext="sse" sse-connect="/api/sse/activity">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Chat</th>
+                <th>Message</th>
+                <th>Class</th>
+                <th>Action</th>
+                <th>Reply</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td class="time-col">{{ log.processed_at }}</td>
+                <td>{{ log.chat_jid[:20] }}...</td>
+                <td class="msg-col">{{ (log.content or '')[:60] }}</td>
+                <td>
+                    <span class="classification-badge {{ (log.classification or 'unknown')|lower }}">
+                        {{ log.classification or 'N/A' }}
+                    </span>
+                </td>
+                <td>{{ log.action_taken or '' }}</td>
+                <td class="msg-col">{{ (log.reply_text or '')[:60] }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty-state">No activity yet. The bot checks every 3 minutes.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>🧠 LM Studio Models</h1>
+    <div class="status-indicator">
+        <div class="status-dot {% if lm_status == 'online' %}online{% else %}offline{% endif %}"></div>
+        <span>{{ lm_status | upper }} — {{ lm_url }}</span>
+    </div>
+</div>
+<div class="models-grid" hx-get="/api/models" hx-trigger="every 10s" hx-swap="none">
+    {% if models %}
+    {% for model in models %}
+    <div class="model-card">
+        <div class="model-icon">🧠</div>
+        <div class="model-info">
+            <div class="model-name">{{ model.id }}</div>
+            <div class="model-meta">
+                {% if model.owned_by %}<span>Owner: {{ model.owned_by }}</span>{% endif %}
+            </div>
+        </div>
+        <div class="model-status loaded">Loaded</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        {% if lm_status == 'offline' %}
+        <p>Cannot reach LM Studio at <strong>{{ lm_url }}</strong></p>
+        <p class="help-text">Make sure LM Studio is running and the server is enabled.</p>
+        {% else %}
+        <p>No models currently loaded in LM Studio.</p>
+        <p class="help-text">Load a model in LM Studio to start using AI features.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

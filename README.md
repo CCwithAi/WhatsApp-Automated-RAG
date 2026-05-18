@@ -4,7 +4,7 @@ This is a Model Context Protocol (MCP) server for WhatsApp.
 
 With this you can search and read your personal Whatsapp messages (including images, videos, documents, and audio messages), search your contacts and send messages to either individuals or groups. You can also send media files including images, videos, documents, and audio messages.
 
-It connects to your **personal WhatsApp account** directly via the Whatsapp web multidevice API (using the [whatsmeow](https://github.com/tulir/whatsmeow) library). All your messages are stored locally in a SQLite database and only sent to an LLM (such as Claude) when the agent accesses them through tools (which you control).
+It connects to your **personal or business WhatsApp account** directly via the Whatsapp web multidevice API (using the [whatsmeow](https://github.com/tulir/whatsmeow) library). All your messages are stored locally in a SQLite database and only sent to an LLM (such as Claude) when the agent accesses them through tools (which you control).
 
 Here's an example of what you can do when it's connected to Claude.
 
@@ -22,7 +22,7 @@ Here's an example of what you can do when it's connected to Claude.
 - Python 3.6+
 - Anthropic Claude Desktop app (or Cursor)
 - UV (Python package manager), install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- FFmpeg (_optional_) - Only needed for audio messages. If you want to send audio files as playable WhatsApp voice messages, they must be in `.ogg` Opus format. With FFmpeg installed, the MCP server will automatically convert non-Opus audio files. Without FFmpeg, you can still send raw audio files using the `send_file` tool.
+- FFmpeg (*optional*) - Only needed for audio messages. If you want to send audio files as playable WhatsApp voice messages, they must be in `.ogg` Opus format. With FFmpeg installed, the MCP server will automatically convert non-Opus audio files. Without FFmpeg, you can still send raw audio files using the `send_file` tool.
 
 ### Steps
 
@@ -35,6 +35,32 @@ Here's an example of what you can do when it's connected to Claude.
 
 2. **Run the WhatsApp bridge**
 
+   You have two options:
+
+   #### Option A: Docker (recommended — runs 24/7)
+
+   Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) to be installed and running.
+
+   > [!IMPORTANT]
+   > **Database Prerequisite:** The WhatsApp AI Bot requires **Microsoft SQL Server** to store conversation logs and RAG statistics.
+   > 1. In **Docker Desktop**, go to **Extensions** in the left sidebar.
+   > 2. Search for **SQL Server** or **SQL containers** and install it, or run standard SQL Server on port `14314` (see [DOCKER.md](./DOCKER.md#database-setup-microsoft-sql-server) for full settings).
+   > 3. Verify your database connection string in `instances/{instance}/context.yaml`.
+
+   ```bash
+   # First run (scan QR code in the terminal)
+   docker compose up
+
+   # After QR scan succeeds, Ctrl+C, then run in background
+   docker compose up -d
+   ```
+
+   The bridge will auto-restart on crashes and after reboots (as long as Docker Desktop is running).
+
+   See [DOCKER.md](./DOCKER.md) for the full Docker setup guide, SQL Server setup, common commands, and re-authentication.
+
+   #### Option B: Manual (Go required)
+
    Navigate to the whatsapp-bridge directory and run the Go application:
 
    ```bash
@@ -42,22 +68,28 @@ Here's an example of what you can do when it's connected to Claude.
    go run main.go
    ```
 
-   The first time you run it, you will be prompted to scan a QR code. Scan the QR code with your WhatsApp mobile app to authenticate.
+   > **Note:** With this option, the bridge stops when you close the terminal.
 
-   After approximately 20 days, you will might need to re-authenticate.
+   ---
+
+   The first time you run it (either option), you will be prompted to scan a QR code. Scan the QR code with your WhatsApp mobile app to authenticate.
+
+   After approximately 20 days, you may need to re-authenticate.
 
 3. **Connect to the MCP server**
 
-   Copy the below json with the appropriate {{PATH}} values:
+   Add the WhatsApp MCP server to your AI tool's config. Replace the paths below with your actual paths:
+
+   **Windows example:**
 
    ```json
    {
      "mcpServers": {
        "whatsapp": {
-         "command": "{{PATH_TO_UV}}", // Run `which uv` and place the output here
+         "command": "C:\\Users\\YOUR_USER\\.local\\bin\\uv.exe",
          "args": [
            "--directory",
-           "{{PATH_TO_SRC}}/whatsapp-mcp/whatsapp-mcp-server", // cd into the repo, run `pwd` and enter the output here + "/whatsapp-mcp-server"
+           "D:\\whatsapp-mcp\\whatsapp-mcp-server",
            "run",
            "main.py"
          ]
@@ -66,17 +98,33 @@ Here's an example of what you can do when it's connected to Claude.
    }
    ```
 
-   For **Claude**, save this as `claude_desktop_config.json` in your Claude Desktop configuration directory at:
+   **Mac/Linux example:**
 
-   ```
-   ~/Library/Application Support/Claude/claude_desktop_config.json
+   ```json
+   {
+     "mcpServers": {
+       "whatsapp": {
+         "command": "uv",
+         "args": [
+           "--directory",
+           "/path/to/whatsapp-mcp/whatsapp-mcp-server",
+           "run",
+           "main.py"
+         ]
+       }
+     }
+   }
    ```
 
-   For **Cursor**, save this as `mcp.json` in your Cursor configuration directory at:
+   > **Tip:** On Windows, run `(Get-Command uv).Source` in PowerShell to find your UV path. On Mac/Linux, run `which uv`.
 
-   ```
-   ~/.cursor/mcp.json
-   ```
+   For **Claude**, save this as `claude_desktop_config.json` at:
+   - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Mac:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+   For **Cursor**, save this as `mcp.json` at:
+   - **Windows:** `%USERPROFILE%\.cursor\mcp.json`
+   - **Mac/Linux:** `~/.cursor/mcp.json`
 
 4. **Restart Claude Desktop / Cursor**
 
@@ -88,7 +136,7 @@ Here's an example of what you can do when it's connected to Claude.
 
 If you're running this project on Windows, be aware that `go-sqlite3` requires **CGO to be enabled** in order to compile and work properly. By default, **CGO is disabled on Windows**, so you need to explicitly enable it and have a C compiler installed.
 
-#### Steps to get it working:
+#### Steps to get it working
 
 1. **Install a C compiler**  
    We recommend using [MSYS2](https://www.msys2.org/) to install a C compiler for Windows. After installing MSYS2, make sure to add the `ucrt64\bin` folder to your `PATH`.  
