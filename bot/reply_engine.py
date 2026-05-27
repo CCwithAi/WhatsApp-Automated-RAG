@@ -543,7 +543,7 @@ Example response: "Before we can discuss or update your booking, I just need to 
                             # Extract details and save/update
                             context = self.bridge_db.get_conversation_context(recipient, limit=None)
                             booking = self._extract_booking_details(context)
-                            if booking and booking.get("customer_name") and booking.get("clean_date"):
+                            if booking and (booking.get("customer_name") or booking.get("customer_email") or booking.get("customer_phone") or booking.get("address") or recipient):
                                 exists = self.tracking_db.get_appointments_by_jid(recipient)
                                 is_update = len(exists) > 0
                                 
@@ -552,26 +552,48 @@ Example response: "Before we can discuss or update your booking, I just need to 
                                 cust_name = booking.get("customer_name") or ""
                                 clean_name = re.sub(r'[\s\+\-\(\)@\.]', '', cust_name)
                                 is_numeric = clean_name.isdigit() or "@" in cust_name
-                                if not cust_name or is_numeric or cust_name == "Customer":
+                                if not cust_name or is_numeric or cust_name == "Customer" or cust_name.lower() == "null":
                                     contact_name = self.bridge_db.get_contact_name(recipient)
                                     if contact_name:
                                         clean_pot = re.sub(r'[\s\+\-\(\)@\.]', '', contact_name)
                                         if not clean_pot.isdigit() and "@" not in contact_name:
                                             booking["customer_name"] = contact_name
+ 
+                                if not booking.get("customer_name") or booking.get("customer_name").lower() == "null":
+                                    booking["customer_name"] = "Customer"
+
+                                # Clean and normalize other fields
+                                if not booking.get("customer_email") or booking.get("customer_email").lower() == "null":
+                                    booking["customer_email"] = ""
+                                if not booking.get("customer_phone") or booking.get("customer_phone").lower() == "null":
+                                    phone_val = recipient.split("@")[0] if recipient and "@" in recipient else ""
+                                    if phone_val.isdigit():
+                                        booking["customer_phone"] = phone_val
+                                    else:
+                                        booking["customer_phone"] = ""
+                                if not booking.get("address") or booking.get("address").lower() == "null":
+                                    booking["address"] = ""
+                                if not booking.get("clean_date") or booking.get("clean_date").lower() == "null":
+                                    booking["clean_date"] = "TBD"
+                                if not booking.get("clean_type") or booking.get("clean_type").lower() == "null":
+                                    booking["clean_type"] = "Clean"
+                                if not booking.get("price") or booking.get("price").lower() == "null":
+                                    booking["price"] = "TBD"
 
                                 app_id = self.tracking_db.create_or_update_appointment(
                                     chat_jid=recipient,
                                     customer_name=booking["customer_name"],
-                                    customer_email=booking["customer_email"] or "",
-                                    address=booking["address"] or "",
+                                    customer_email=booking["customer_email"],
+                                    address=booking["address"],
                                     clean_date=booking["clean_date"],
-                                    clean_type=booking["clean_type"] or "Clean",
-                                    price=booking["price"] or "",
-                                    status="pending"
+                                    clean_type=booking["clean_type"],
+                                    price=booking["price"],
+                                    status="pending",
+                                    phone=booking["customer_phone"]
                                 )
                                 if app_id:
                                     logger.info(f"Successfully recorded bot provisional booking {app_id} (is_update={is_update})")
-                                    self._send_provisional_booking_admin_email(booking, is_update)
+                                    self._send_provisional_booking_admin_email(booking, is_update, recipient)
                         except Exception as ex:
                             logger.error(f"Failed to auto-save bot provisional booking: {ex}", exc_info=True)
                 return success
@@ -996,6 +1018,7 @@ Example response: "Before we can discuss or update your booking, I just need to 
                             "{\n"
                             '  "customer_name": "extracted name or null",\n'
                             '  "customer_email": "extracted email or null",\n'
+                            '  "customer_phone": "extracted phone number or null",\n'
                             '  "address": "extracted full address with postcode or null",\n'
                             '  "clean_date": "extracted clean date and time or null",\n'
                             '  "clean_type": "extracted clean type (e.g. Deep Clean, Standard Clean) or null",\n'
@@ -1022,7 +1045,7 @@ Example response: "Before we can discuss or update your booking, I just need to 
             logger.error(f"Failed to extract booking details: {e}")
             return None
 
-    def _send_provisional_booking_admin_email(self, booking: dict, is_update: bool):
+    def _send_provisional_booking_admin_email(self, booking: dict, is_update: bool, chat_jid: str = ""):
         try:
             resend_api_key = self.config.resend.get("api_key")
             resend_from = self.config.resend.get("from_email", "onboarding@resend.dev")
@@ -1035,6 +1058,14 @@ Example response: "Before we can discuss or update your booking, I just need to 
             clean_date = booking.get("clean_date") or "Not specified"
             address = booking.get("address") or "Not provided"
             customer_email = booking.get("customer_email") or "Not provided"
+            customer_phone = booking.get("customer_phone") or ""
+            if not customer_phone and chat_jid and "@" in chat_jid:
+                phone_from_jid = chat_jid.split("@")[0]
+                if phone_from_jid.isdigit():
+                    customer_phone = phone_from_jid
+            if not customer_phone:
+                customer_phone = "Not provided"
+                
             clean_type = booking.get("clean_type") or "Clean"
             price = booking.get("price") or "Not specified"
             
@@ -1057,18 +1088,22 @@ Example response: "Before we can discuss or update your booking, I just need to 
                         <td style="padding: 10px; border: 1px solid #dfe6e9;">{customer_email}</td>
                     </tr>
                     <tr style="background-color: #f8f9fa;">
+                        <th style="text-align: left; padding: 10px; border: 1px solid #dfe6e9;">📞 Phone</th>
+                        <td style="padding: 10px; border: 1px solid #dfe6e9;">{customer_phone}</td>
+                    </tr>
+                    <tr>
                         <th style="text-align: left; padding: 10px; border: 1px solid #dfe6e9;">🏡 Address</th>
                         <td style="padding: 10px; border: 1px solid #dfe6e9;">{address}</td>
                     </tr>
-                    <tr>
+                    <tr style="background-color: #f8f9fa;">
                         <th style="text-align: left; padding: 10px; border: 1px solid #dfe6e9;">📅 Date & Time</th>
                         <td style="padding: 10px; border: 1px solid #dfe6e9;">{clean_date}</td>
                     </tr>
-                    <tr style="background-color: #f8f9fa;">
+                    <tr>
                         <th style="text-align: left; padding: 10px; border: 1px solid #dfe6e9;">🧹 Type of Clean</th>
                         <td style="padding: 10px; border: 1px solid #dfe6e9;">{clean_type}</td>
                     </tr>
-                    <tr>
+                    <tr style="background-color: #f8f9fa;">
                         <th style="text-align: left; padding: 10px; border: 1px solid #dfe6e9;">💰 Agreed Price</th>
                         <td style="padding: 10px; border: 1px solid #dfe6e9;">{price}</td>
                     </tr>

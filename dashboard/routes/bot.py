@@ -283,7 +283,7 @@ async def sse_activity(request: Request):
 
 @router.get("/calendar", response_class=HTMLResponse)
 async def calendar_page(request: Request, search: str = "", email_sent: str = "", email_error: str = ""):
-    # Ensure clean_status and notes columns exist in appointments table
+    # Ensure clean_status, notes, and phone columns exist in appointments table
     try:
         sql_execute(f"""
             IF NOT EXISTS (SELECT * FROM syscolumns WHERE id=object_id('{INSTANCE}_appointments') AND name='clean_status')
@@ -297,6 +297,12 @@ async def calendar_page(request: Request, search: str = "", email_sent: str = ""
                 ALTER TABLE {INSTANCE}_appointments ADD notes NVARCHAR(MAX) NULL
             END
         """)
+        sql_execute(f"""
+            IF NOT EXISTS (SELECT * FROM syscolumns WHERE id=object_id('{INSTANCE}_appointments') AND name='phone')
+            BEGIN
+                ALTER TABLE {INSTANCE}_appointments ADD phone NVARCHAR(50) NULL
+            END
+        """)
     except Exception as e:
         logger.error(f"Failed to ensure columns on appointments table: {e}")
 
@@ -304,13 +310,13 @@ async def calendar_page(request: Request, search: str = "", email_sent: str = ""
     filt = ""
     params = ()
     if search:
-        filt = "WHERE a.customer_name LIKE %s OR a.customer_email LIKE %s OR a.address LIKE %s OR a.clean_type LIKE %s OR s.custom_name LIKE %s"
+        filt = "WHERE a.customer_name LIKE %s OR a.customer_email LIKE %s OR a.phone LIKE %s OR a.address LIKE %s OR a.clean_type LIKE %s OR s.custom_name LIKE %s"
         search_param = f"%{search}%"
-        params = (search_param, search_param, search_param, search_param, search_param)
+        params = (search_param, search_param, search_param, search_param, search_param, search_param)
         
     try:
         appointments = sql_query(f"""
-            SELECT a.id, a.chat_jid, a.customer_name, a.customer_email, a.address, a.clean_date, a.clean_type, a.price, a.status, a.clean_status, a.notes, a.created_at,
+            SELECT a.id, a.chat_jid, a.customer_name, a.customer_email, a.phone, a.address, a.clean_date, a.clean_type, a.price, a.status, a.clean_status, a.notes, a.created_at,
                    s.custom_name
             FROM {INSTANCE}_appointments a
             LEFT JOIN {INSTANCE}_chat_status s ON a.chat_jid = s.jid
@@ -385,9 +391,10 @@ async def add_appointment(
     status: str = Form("pending"),
     chat_jid: str = Form(""),
     notes: str = Form(None),
+    phone: str = Form(""),
 ):
     try:
-        # Ensure clean_status and notes columns exist
+        # Ensure columns exist
         try:
             sql_execute(f"""
                 IF NOT EXISTS (SELECT * FROM syscolumns WHERE id=object_id('{INSTANCE}_appointments') AND name='clean_status')
@@ -401,12 +408,18 @@ async def add_appointment(
                     ALTER TABLE {INSTANCE}_appointments ADD notes NVARCHAR(MAX) NULL
                 END
             """)
+            sql_execute(f"""
+                IF NOT EXISTS (SELECT * FROM syscolumns WHERE id=object_id('{INSTANCE}_appointments') AND name='phone')
+                BEGIN
+                    ALTER TABLE {INSTANCE}_appointments ADD phone NVARCHAR(50) NULL
+                END
+            """)
         except Exception:
             pass
         sql_execute(f"""
-            INSERT INTO {INSTANCE}_appointments (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, clean_status, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s)
-        """, (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, notes))
+            INSERT INTO {INSTANCE}_appointments (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, clean_status, notes, phone)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+        """, (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, notes, phone))
     except Exception as e:
         logger.error(f"Failed to add appointment: {e}")
     return RedirectResponse("/calendar", status_code=303)
@@ -815,13 +828,14 @@ async def update_appointment(
     clean_date: str = Form(...),
     clean_type: str = Form(...),
     price: str = Form(...),
+    phone: str = Form(""),
 ):
     try:
         sql_execute(f"""
             UPDATE {INSTANCE}_appointments
-            SET customer_name = %s, customer_email = %s, address = %s, clean_date = %s, clean_type = %s, price = %s
+            SET customer_name = %s, customer_email = %s, address = %s, clean_date = %s, clean_type = %s, price = %s, phone = %s
             WHERE id = %s
-        """, (customer_name, customer_email, address, clean_date, clean_type, price, app_id))
+        """, (customer_name, customer_email, address, clean_date, clean_type, price, phone, app_id))
         logger.info(f"Updated appointment {app_id}")
     except Exception as e:
         logger.error(f"Failed to update appointment {app_id}: {e}")

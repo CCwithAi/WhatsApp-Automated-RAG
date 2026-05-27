@@ -393,6 +393,9 @@
                                 <h3>{{ app.display_name or app.customer_name }}</h3>
                             {% endif %}
                             <div class="email">📧 {{ app.customer_email }}</div>
+                            {% if app.phone %}
+                                <div class="phone" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 2px;">📞 {{ app.phone }}</div>
+                            {% endif %}
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                             <form method="post" action="/api/appointments/{{ app.id }}/toggle-status" style="display:inline; margin: 0;">
@@ -479,6 +482,7 @@
                                 data-id="{{ app.id }}"
                                 data-name="{{ app.customer_name }}"
                                 data-email="{{ app.customer_email }}"
+                                data-phone="{{ app.phone or '' }}"
                                 data-address="{{ app.address }}"
                                 data-date="{{ app.clean_date }}"
                                 data-type="{{ app.clean_type }}"
@@ -517,6 +521,10 @@
             <div class="form-group">
                 <label>Customer Email</label>
                 <input type="email" name="customer_email" required placeholder="e.g. nadia@example.com">
+            </div>
+            <div class="form-group">
+                <label>Customer Phone</label>
+                <input type="text" name="phone" placeholder="e.g. 07522 329951">
             </div>
             <div class="form-group">
                 <label>Clean Address & Postcode</label>
@@ -571,6 +579,10 @@
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Customer Email</label>
                 <input type="email" id="edit-email" name="customer_email" required style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.95rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Customer Phone</label>
+                <input type="text" id="edit-phone" name="phone" style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.95rem;">
             </div>
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">Clean Address</label>
@@ -631,6 +643,7 @@ function openEditModal(button) {
     const id = button.getAttribute('data-id');
     const name = button.getAttribute('data-name');
     const email = button.getAttribute('data-email');
+    const phone = button.getAttribute('data-phone');
     const address = button.getAttribute('data-address');
     const date = button.getAttribute('data-date');
     const type = button.getAttribute('data-type');
@@ -639,6 +652,7 @@ function openEditModal(button) {
     document.getElementById('editForm').action = '/api/appointments/' + id + '/update';
     document.getElementById('edit-name').value = name;
     document.getElementById('edit-email').value = email;
+    document.getElementById('edit-phone').value = phone || '';
     document.getElementById('edit-address').value = address;
     document.getElementById('edit-date').value = date;
     document.getElementById('edit-type').value = type;

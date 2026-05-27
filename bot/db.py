@@ -170,12 +170,19 @@ class TrackingDB:
                     chat_jid NVARCHAR(255),
                     customer_name NVARCHAR(255),
                     customer_email NVARCHAR(255),
+                    phone NVARCHAR(50) NULL,
                     address NVARCHAR(MAX),
                     clean_date NVARCHAR(255),
                     clean_type NVARCHAR(255),
                     price NVARCHAR(50),
                     status NVARCHAR(50) DEFAULT 'pending',
                     created_at DATETIME2 DEFAULT GETDATE())
+            """)
+            cur.execute(f"""
+                IF NOT EXISTS (SELECT * FROM syscolumns WHERE id=object_id('{p}_appointments') AND name='phone')
+                BEGIN
+                    ALTER TABLE {p}_appointments ADD phone NVARCHAR(50) NULL
+                END
             """)
             cur.execute(f"""
                 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='{p}_email_log' AND xtype='U')
@@ -339,7 +346,7 @@ class TrackingDB:
         finally:
             conn.close()
 
-    def create_or_update_appointment(self, chat_jid: str, customer_name: str, customer_email: str, address: str, clean_date: str, clean_type: str, price: str, status: str) -> int:
+    def create_or_update_appointment(self, chat_jid: str, customer_name: str, customer_email: str, address: str, clean_date: str, clean_type: str, price: str, status: str, phone: str = "") -> int:
         conn = self._connect()
         try:
             cur = conn.cursor()
@@ -353,16 +360,16 @@ class TrackingDB:
                 final_status = 'confirmed' if existing_status == 'confirmed' else status
                 cur.execute(f"""
                     UPDATE {self.prefix}_appointments
-                    SET customer_name=%s, customer_email=%s, address=%s, clean_date=%s, clean_type=%s, price=%s, status=%s
+                    SET customer_name=%s, customer_email=%s, address=%s, clean_date=%s, clean_type=%s, price=%s, status=%s, phone=%s
                     WHERE id=%s
-                """, (customer_name, customer_email, address, clean_date, clean_type, price, final_status, app_id))
+                """, (customer_name, customer_email, address, clean_date, clean_type, price, final_status, phone, app_id))
                 conn.commit()
                 return app_id
             else:
                 cur.execute(f"""
-                    INSERT INTO {self.prefix}_appointments (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status))
+                    INSERT INTO {self.prefix}_appointments (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, phone)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (chat_jid, customer_name, customer_email, address, clean_date, clean_type, price, status, phone))
                 cur.execute("SELECT @@IDENTITY AS id")
                 row = cur.fetchone()
                 conn.commit()
